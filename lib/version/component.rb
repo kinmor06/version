@@ -10,9 +10,8 @@ class Version::Component
   #
   def initialize(component)
     parts = component.split /(?=\D)/
-    
     self.digits = parts[0].to_i
-    self.letter = parts[1].to_s.strip
+    self.letter = parts[1..-1].join('')
   end
   
   def initialize_copy(other)
@@ -21,25 +20,37 @@ class Version::Component
   end
   
   def prerelease?
-    not self.letter.empty?
+    !(self.letter.empty? || self.letter.include?('rc'))
+  end
+
+  def rc?
+    self.letter.include?('rc')
+  end
+
+  def has_suffix?
+    !self.letter.empty?
   end
   
   def unprerelease!
-    self.next! if self.prerelease?
+    self.next! if self.has_suffix?
   end
   
-  def next(pre = false)
-    self.dup.next!(pre)
+  def next(suffix = nil)
+    self.dup.next!(suffix)
   end
   
-  def next!(pre = false)
-    case
-      when (    pre and     self.prerelease?) then self.letter.next!
-      when (    pre and not self.prerelease?) then self.letter = 'a'
-      when (not pre and     self.prerelease?) then self.letter = ''
-      when (not pre and not self.prerelease?) then self.digits = self.digits.next
+  def next!(suffix = nil)
+    case suffix.to_s
+      when 'pre'
+        self.digits = self.rc? ? self.digits.next : self.digits
+        self.letter = self.prerelease? ? self.letter.next : 'a'
+      when 'rc'
+        self.digits = self.rc? ? self.digits : self.digits
+        self.letter = self.rc? ? self.letter.next : 'rc1'
+      else
+        self.digits = self.digits.next unless self.has_suffix?
+        self.letter = '' if self.has_suffix?
     end
-    
     self
   end
   

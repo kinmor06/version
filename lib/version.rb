@@ -95,6 +95,14 @@ class Version
     self.components.any? {|c| c.prerelease? }
   end
 
+  def rc?
+    self.components.any? {|c| c.rc? }
+  end
+
+  def has_suffix?
+    self.components.any? {|c| c.has_suffix? }
+  end
+
   #
   # Resizes the Version to +length+, removing any trailing components. Is a
   # no-op if +length+ is greater than its current length.
@@ -107,33 +115,43 @@ class Version
   #
   # Bumps the version number and replaces the current object. Pass
   # +component+ to bump a component other than the least-significant
-  # part. Set +pre+ to true if you want to bump the component to a
-  # prerelease version. Set +trim+ to true if you want the version to
-  # be resized to only large enough to contain the component set.
+  # part. Set +suffix+ to :pre if you want to bump the component to a
+  # prerelease version, :rc if you want to bump to a release candiate. 
+  # Set +trim+ to true if you want the version to be resized to only 
+  # large enough to contain the component set.
   #
   #    "1.0.4a".bump!                       # => '1.0.4'
   #    "1.0.4a".bump!(:pre)                 # => '1.0.4b'
-  #    "1.0.4a".bump!(:minor, false, true)  # => '1.1'
+  #    "1.0.4a".bump!(:minor)               # => '1.1'
   #    "1.0.4a".bump!(:minor, true, true)   # => '1.1a
-  #    "1.0.4a".bump!(:minor, true, false)  # => '1.1.0a'
+  #    "1.0.4a".bump!(:minor, true, false)  # => '1.1.0a' 
+  # Additional RC bumps
+  #    "1.0.4".bump!(:rc)                   # => '1.0.5rc1'
+  #    "1.0.4a".bump!(:rc)                  # => '1.0.4rc1'
+  #    "1.0.4rc1".bump!(:rc)                # => '1.0.4rc2' 
+  #    "1.0.4rc1".bump!(:rc)                # => '1.0.4rc2' 
+  #    "1.0.4rc2".bump!                     # => '1.0.4'
   #
-  def bump!(component = -1, pre = false, trim = false)
+  def bump!(component = -1, suffix = nil, trim = false)
     case component
-      when :major    then self.bump!(0,  pre,  trim)
-      when :minor    then self.bump!(1,  pre,  trim)
-      when :revision then self.bump!(2,  pre,  trim)
-      when :pre      then self.bump!(-1, true, trim)
+      when :major    then self.bump!(0, suffix,  trim)
+      when :minor    then self.bump!(1, suffix,  trim)
+      when :revision then self.bump!(2, suffix,  trim)
+      when :pre      then self.bump!(-1, :pre, trim)
+      when :rc       then self.bump!(-1, :rc, trim)
       else
         # resize to match the new length, if applicable
         self.resize!(component + 1) if (trim or component >= self.length)
 
         # mark all but the changed bit as non-prerelease
         self[0...component].each(&:unprerelease!)
-
-        # I don't even understand this part any more; god help you
-        self[component] = self[component].next if     pre and self.prerelease? and component == self.length - 1
-        self[component] = self[component].next unless pre and self.prerelease? and component == -1
-        self[-1]        = self[-1].next(true)  if pre
+        # increase the digits for a particular component
+        # self[component] = self[component].next()
+        self[component] = self[component].next if     suffix and self.has_suffix? and component == self.length - 1
+        self[component] = self[component].next unless suffix and self.has_suffix? and component == -1
+        
+        # increase the suffix parts
+        self[-1] = self[-1].next(suffix) if suffix
         self
     end
   end
